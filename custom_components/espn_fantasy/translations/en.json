@@ -1,0 +1,19 @@
+{
+  "title": "ESPN Fantasy",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to ESPN Fantasy",
+        "description": "Enter your ESPN Fantasy Football league information and authentication credentials.",
+        "data": {
+          "name": "Name",
+          "league_id": "League ID",
+          "team_id": "Team ID",
+          "year": "Season",
+          "swid": "SWID",
+          "espn_s2": "ESPN S2"
+        }
+      }
+    }
+  }
+}

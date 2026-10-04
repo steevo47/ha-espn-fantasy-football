@@ -1,0 +1,14 @@
+{
+  "domain": "espn_fantasy",
+  "name": "ESPN Fantasy",
+  "codeowners": [
+    "@steevo67"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/steevo47/ha-espn-fantasy-football",
+  "iot_class": "cloud_polling",
+  "requirements": [
+    "espn-api"
+  ],
+  "version": "0.1.0"
+}
