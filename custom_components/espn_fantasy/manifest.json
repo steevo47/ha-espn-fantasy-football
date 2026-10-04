@@ -5,7 +5,10 @@
     "@steevo67"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/steevo47/ha-espn-fantasy-football",
+  "dependencies": [
+    "http"
+  ],
+  "documentation": "https://github.com/steevo67/ha-espn-fantasy",
   "iot_class": "cloud_polling",
   "requirements": [
     "espn-api==0.46.0"
