@@ -12,6 +12,17 @@ from .const import CONF_LEAGUE_ID
 from .coordinator import ESPNFantasyCoordinator
 
 
+LINEUP_ORDER = {
+    "QB": 0,
+    "RB": 1,
+    "WR": 2,
+    "TE": 3,
+    "RB/WR/TE": 4,
+    "D/ST": 5,
+    "K": 6,
+}
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -138,13 +149,21 @@ class ESPNFantasyMatchupSensor(
 
     @staticmethod
     def _starting_lineup(lineup):
-        """Return starting players, excluding bench and IR."""
+        """Return starting players in fantasy roster order."""
 
-        return [
+        starters = [
             player
             for player in lineup
             if player.slot_position not in ("BE", "IR")
         ]
+
+        return sorted(
+            starters,
+            key=lambda player: LINEUP_ORDER.get(
+                player.slot_position,
+                99,
+            ),
+        )
 
     @staticmethod
     def _pregame_projection(lineup):
@@ -154,28 +173,38 @@ class ESPNFantasyMatchupSensor(
             sum(
                 player.projected_points or 0
                 for player in lineup
-                if player.slot_position not in ("BE", "IR")
             ),
             2,
         )
 
     @staticmethod
-    def _lineup_attributes(lineup):
+    def _display_slot(slot):
+        """Return a friendly lineup slot name."""
+
+        if slot == "RB/WR/TE":
+            return "FLEX"
+
+        return slot
+
+    @classmethod
+    def _lineup_attributes(cls, lineup):
         """Convert starting lineup to HA-friendly data."""
 
         players = []
 
         for player in lineup:
-            if player.slot_position in ("BE", "IR"):
-                continue
-
             players.append(
                 {
                     "name": player.name,
-                    "slot": player.slot_position,
+                    "slot": cls._display_slot(
+                        player.slot_position
+                    ),
                     "position": player.position,
                     "pro_team": player.proTeam,
-                    "points": round(player.points or 0, 2),
+                    "points": round(
+                        player.points or 0,
+                        2,
+                    ),
                     "projected_points": round(
                         player.projected_points or 0,
                         2,
@@ -210,7 +239,10 @@ class ESPNFantasyMatchupSensor(
         if matchup is None or data is None:
             return {}
 
-        lineup = self._starting_lineup(data["lineup"])
+        lineup = self._starting_lineup(
+            data["lineup"]
+        )
+
         opponent_lineup = self._starting_lineup(
             data["opponent_lineup"]
         )
@@ -220,13 +252,19 @@ class ESPNFantasyMatchupSensor(
 
             "team": data["team"].team_name,
             "team_id": data["team"].team_id,
-            "score": round(data["score"], 2),
-            "pregame_projection": self._pregame_projection(
-                lineup
+            "score": round(
+                data["score"],
+                2,
             ),
+            "pregame_projection":
+                self._pregame_projection(
+                    lineup
+                ),
 
-            "opponent": data["opponent"].team_name,
-            "opponent_team_id": data["opponent"].team_id,
+            "opponent":
+                data["opponent"].team_name,
+            "opponent_team_id":
+                data["opponent"].team_id,
             "opponent_score": round(
                 data["opponent_score"],
                 2,
@@ -236,13 +274,24 @@ class ESPNFantasyMatchupSensor(
                     opponent_lineup
                 ),
 
-            "home_team": matchup.home_team.team_name,
-            "home_score": round(matchup.home_score, 2),
+            "home_team":
+                matchup.home_team.team_name,
+            "home_score": round(
+                matchup.home_score,
+                2,
+            ),
 
-            "away_team": matchup.away_team.team_name,
-            "away_score": round(matchup.away_score, 2),
+            "away_team":
+                matchup.away_team.team_name,
+            "away_score": round(
+                matchup.away_score,
+                2,
+            ),
 
-            "lineup": self._lineup_attributes(lineup),
+            "lineup":
+                self._lineup_attributes(
+                    lineup
+                ),
 
             "opponent_lineup":
                 self._lineup_attributes(
