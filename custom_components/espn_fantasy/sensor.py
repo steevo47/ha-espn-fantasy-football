@@ -160,55 +160,7 @@ class ESPNFantasyMatchupSensor(
         )
 
     @staticmethod
-    def _game_status(player):
-        """Return a simple NFL game status for a player."""
-
-        game_played = getattr(player, "game_played", 0) or 0
-
-        if game_played >= 100:
-            return "final"
-
-        if game_played > 0:
-            return "in_progress"
-
-        return "scheduled"
-
-    @classmethod
-    def _live_projection(cls, lineup):
-        """Calculate a simple live team projection.
-
-        Completed players use their actual points.
-        Players who have not started use ESPN projected points.
-        Players currently playing use actual points plus the
-        remaining fraction of their ESPN projection.
-        """
-
-        total = 0.0
-
-        for player in lineup:
-            if player.slot_position in ("BE", "IR"):
-                continue
-
-            points = player.points or 0
-            projected = player.projected_points or 0
-            game_played = getattr(player, "game_played", 0) or 0
-
-            if game_played >= 100:
-                player_projection = points
-
-            elif game_played <= 0:
-                player_projection = projected
-
-            else:
-                remaining = max(0, 1 - (game_played / 100))
-                player_projection = points + (projected * remaining)
-
-            total += player_projection
-
-        return round(total, 2)
-
-    @classmethod
-    def _lineup_attributes(cls, lineup):
+    def _lineup_attributes(lineup):
         """Convert starting lineup to HA-friendly data."""
 
         players = []
@@ -216,8 +168,6 @@ class ESPNFantasyMatchupSensor(
         for player in lineup:
             if player.slot_position in ("BE", "IR"):
                 continue
-
-            game_played = getattr(player, "game_played", 0) or 0
 
             players.append(
                 {
@@ -230,8 +180,6 @@ class ESPNFantasyMatchupSensor(
                         player.projected_points or 0,
                         2,
                     ),
-                    "game_played": game_played,
-                    "game_status": cls._game_status(player),
                 }
             )
 
@@ -273,11 +221,7 @@ class ESPNFantasyMatchupSensor(
             "team": data["team"].team_name,
             "team_id": data["team"].team_id,
             "score": round(data["score"], 2),
-
             "pregame_projection": self._pregame_projection(
-                lineup
-            ),
-            "live_projection": self._live_projection(
                 lineup
             ),
 
@@ -287,14 +231,8 @@ class ESPNFantasyMatchupSensor(
                 data["opponent_score"],
                 2,
             ),
-
             "opponent_pregame_projection":
                 self._pregame_projection(
-                    opponent_lineup
-                ),
-
-            "opponent_live_projection":
-                self._live_projection(
                     opponent_lineup
                 ),
 
