@@ -14,6 +14,13 @@
           "espn_s2": "ESPN S2"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to ESPN. Check your League ID, season, SWID, and ESPN S2 credentials.",
+      "team_not_found": "Connected to the league, but the specified Team ID could not be found."
+    },
+    "abort": {
+      "already_configured": "This ESPN Fantasy team is already configured."
     }
   }
 }

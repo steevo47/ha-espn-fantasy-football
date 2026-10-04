@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 
+from .api import ESPNFantasyAPI
 from .const import (
     CONF_ESPN_S2,
     CONF_LEAGUE_ID,
@@ -16,6 +19,8 @@ from .const import (
     DEFAULT_YEAR,
     DOMAIN,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class ESPNFantasyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -29,23 +34,58 @@ class ESPNFantasyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Prevent the same league/team from being added twice.
-            await self.async_set_unique_id(
-                f"{user_input[CONF_LEAGUE_ID]}_{user_input[CONF_TEAM_ID]}"
-            )
-            self._abort_if_unique_id_configured()
+            try:
+                api = ESPNFantasyAPI(
+                    league_id=user_input[CONF_LEAGUE_ID],
+                    year=user_input[CONF_YEAR],
+                    espn_s2=user_input[CONF_ESPN_S2],
+                    swid=user_input[CONF_SWID],
+                )
 
-            return self.async_create_entry(
-                title=user_input[CONF_NAME],
-                data=user_input,
-            )
+                league = await api.async_connect()
+
+                # Verify that the requested team actually exists.
+                team_id = user_input[CONF_TEAM_ID]
+
+                team = next(
+                    (
+                        team
+                        for team in league.teams
+                        if team.team_id == team_id
+                    ),
+                    None,
+                )
+
+                if team is None:
+                    errors["base"] = "team_not_found"
+
+                else:
+                    await self.async_set_unique_id(
+                        f"{user_input[CONF_LEAGUE_ID]}_{team_id}"
+                    )
+                    self._abort_if_unique_id_configured()
+
+                    return self.async_create_entry(
+                        title=user_input[CONF_NAME],
+                        data=user_input,
+                    )
+
+            except Exception:
+                _LOGGER.exception("Unable to connect to ESPN Fantasy")
+                errors["base"] = "cannot_connect"
 
         data_schema = vol.Schema(
             {
-                vol.Required(CONF_NAME, default="ESPN Fantasy"): str,
+                vol.Required(
+                    CONF_NAME,
+                    default="ESPN Fantasy",
+                ): str,
                 vol.Required(CONF_LEAGUE_ID): int,
                 vol.Required(CONF_TEAM_ID): int,
-                vol.Required(CONF_YEAR, default=DEFAULT_YEAR): int,
+                vol.Required(
+                    CONF_YEAR,
+                    default=DEFAULT_YEAR,
+                ): int,
                 vol.Required(CONF_SWID): str,
                 vol.Required(CONF_ESPN_S2): str,
             }
