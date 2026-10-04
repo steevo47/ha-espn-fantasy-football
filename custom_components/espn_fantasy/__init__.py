@@ -1,7 +1,11 @@
 """ESPN Fantasy integration for Home Assistant."""
 
+from __future__ import annotations
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+
+from .coordinator import ESPNFantasyCoordinator
 
 PLATFORMS = ["sensor"]
 
@@ -12,7 +16,16 @@ async def async_setup_entry(
 ) -> bool:
     """Set up ESPN Fantasy from a config entry."""
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    coordinator = ESPNFantasyCoordinator(hass, entry)
+
+    await coordinator.async_config_entry_first_refresh()
+
+    entry.runtime_data = coordinator
+
+    await hass.config_entries.async_forward_entry_setups(
+        entry,
+        PLATFORMS,
+    )
 
     return True
 

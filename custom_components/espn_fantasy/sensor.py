@@ -2,25 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
-import logging
-
-from espn_api.football import League
-
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    CONF_ESPN_S2,
-    CONF_LEAGUE_ID,
-    CONF_SWID,
-    CONF_TEAM_ID,
-    CONF_YEAR,
-)
-
-_LOGGER = logging.getLogger(__name__)
+from .const import CONF_LEAGUE_ID
+from .coordinator import ESPNFantasyCoordinator
 
 
 async def async_setup_entry(
@@ -30,45 +19,36 @@ async def async_setup_entry(
 ) -> None:
     """Set up ESPN Fantasy sensors."""
 
-    league = await asyncio.to_thread(
-        League,
-        league_id=entry.data[CONF_LEAGUE_ID],
-        year=entry.data[CONF_YEAR],
-        espn_s2=entry.data[CONF_ESPN_S2],
-        swid=entry.data[CONF_SWID],
-    )
-
-    team_id = entry.data[CONF_TEAM_ID]
-
-    team = next(
-        (team for team in league.teams if team.team_id == team_id),
-        None,
-    )
-
-    if team is None:
-        _LOGGER.error("ESPN Fantasy team ID %s was not found", team_id)
-        return
+    coordinator: ESPNFantasyCoordinator = entry.runtime_data
 
     async_add_entities(
         [
             ESPNFantasyTeamSensor(
-                entry=entry,
-                team=team,
+                coordinator,
+                entry,
             )
-        ],
-        True,
+        ]
     )
 
 
-class ESPNFantasyTeamSensor(SensorEntity):
+class ESPNFantasyTeamSensor(
+    CoordinatorEntity[ESPNFantasyCoordinator],
+    SensorEntity,
+):
     """ESPN Fantasy team sensor."""
 
     _attr_icon = "mdi:football"
 
-    def __init__(self, entry: ConfigEntry, team) -> None:
+    def __init__(
+        self,
+        coordinator: ESPNFantasyCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
         """Initialize the sensor."""
 
-        self._team = team
+        super().__init__(coordinator)
+
+        team = coordinator.data["team"]
 
         self._attr_name = team.team_name
         self._attr_unique_id = (
@@ -80,18 +60,25 @@ class ESPNFantasyTeamSensor(SensorEntity):
     def native_value(self):
         """Return the team's current record."""
 
-        return f"{self._team.wins}-{self._team.losses}"
+        team = self.coordinator.data["team"]
+
+        if team.ties:
+            return f"{team.wins}-{team.losses}-{team.ties}"
+
+        return f"{team.wins}-{team.losses}"
 
     @property
     def extra_state_attributes(self):
         """Return additional team information."""
 
+        team = self.coordinator.data["team"]
+
         return {
-            "team_id": self._team.team_id,
-            "team_name": self._team.team_name,
-            "wins": self._team.wins,
-            "losses": self._team.losses,
-            "ties": self._team.ties,
-            "points_for": self._team.points_for,
-            "points_against": self._team.points_against,
+            "team_id": team.team_id,
+            "team_name": team.team_name,
+            "wins": team.wins,
+            "losses": team.losses,
+            "ties": team.ties,
+            "points_for": team.points_for,
+            "points_against": team.points_against,
         }
