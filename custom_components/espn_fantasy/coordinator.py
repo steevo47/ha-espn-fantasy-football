@@ -49,44 +49,66 @@ class ESPNFantasyCoordinator(DataUpdateCoordinator):
         self.league = None
 
     async def _async_update_data(self):
-        """Fetch data from ESPN."""
+    """Fetch data from ESPN."""
 
-        try:
-            league = await asyncio.to_thread(
-                League,
-                league_id=self.entry.data[CONF_LEAGUE_ID],
-                year=self.entry.data[CONF_YEAR],
-                espn_s2=self.entry.data[CONF_ESPN_S2],
-                swid=self.entry.data[CONF_SWID],
-            )
+    try:
+        league = await asyncio.to_thread(
+            League,
+            league_id=self.entry.data[CONF_LEAGUE_ID],
+            year=self.entry.data[CONF_YEAR],
+            espn_s2=self.entry.data[CONF_ESPN_S2],
+            swid=self.entry.data[CONF_SWID],
+        )
 
-            team_id = self.entry.data[CONF_TEAM_ID]
+        team_id = self.entry.data[CONF_TEAM_ID]
 
-            team = next(
-                (
-                    team
-                    for team in league.teams
-                    if team.team_id == team_id
-                ),
-                None,
-            )
+        team = next(
+            (
+                team
+                for team in league.teams
+                if team.team_id == team_id
+            ),
+            None,
+        )
 
-            if team is None:
-                raise UpdateFailed(
-                    f"Team ID {team_id} was not found"
-                )
-
-            self.league = league
-
-            return {
-                "league": league,
-                "team": team,
-            }
-
-        except UpdateFailed:
-            raise
-
-        except Exception as err:
+        if team is None:
             raise UpdateFailed(
-                f"Error communicating with ESPN: {err}"
-            ) from err
+                f"Team ID {team_id} was not found"
+            )
+
+        # Get current week's box scores.
+        box_scores = await asyncio.to_thread(
+            league.box_scores
+        )
+
+        matchup = next(
+            (
+                box_score
+                for box_score in box_scores
+                if (
+                    box_score.home_team
+                    and box_score.home_team.team_id == team_id
+                )
+                or (
+                    box_score.away_team
+                    and box_score.away_team.team_id == team_id
+                )
+            ),
+            None,
+        )
+
+        self.league = league
+
+        return {
+            "league": league,
+            "team": team,
+            "matchup": matchup,
+        }
+
+    except UpdateFailed:
+        raise
+
+    except Exception as err:
+        raise UpdateFailed(
+            f"Error communicating with ESPN: {err}"
+        ) from err

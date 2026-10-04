@@ -26,7 +26,11 @@ async def async_setup_entry(
             ESPNFantasyTeamSensor(
                 coordinator,
                 entry,
-            )
+            ),
+            ESPNFantasyMatchupSensor(
+                coordinator,
+                entry,
+            ),    
         ]
     )
 
@@ -81,4 +85,81 @@ class ESPNFantasyTeamSensor(
             "ties": team.ties,
             "points_for": team.points_for,
             "points_against": team.points_against,
+        }
+class ESPNFantasyMatchupSensor(
+    CoordinatorEntity[ESPNFantasyCoordinator],
+    SensorEntity,
+):
+    """Current ESPN Fantasy matchup sensor."""
+
+    _attr_icon = "mdi:scoreboard"
+
+    def __init__(
+        self,
+        coordinator: ESPNFantasyCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the matchup sensor."""
+
+        super().__init__(coordinator)
+
+        team = coordinator.data["team"]
+
+        self._team_id = team.team_id
+
+        self._attr_name = f"{team.team_name} Matchup"
+        self._attr_unique_id = (
+            f"espn_fantasy_{entry.data[CONF_LEAGUE_ID]}_"
+            f"{team.team_id}_matchup"
+        )
+
+    @property
+    def native_value(self):
+        """Return current matchup score."""
+
+        matchup = self.coordinator.data.get("matchup")
+
+        if matchup is None:
+            return "No matchup"
+
+        if matchup.home_team.team_id == self._team_id:
+            my_score = matchup.home_score
+            opponent_score = matchup.away_score
+        else:
+            my_score = matchup.away_score
+            opponent_score = matchup.home_score
+
+        return f"{my_score:.2f} - {opponent_score:.2f}"
+
+    @property
+    def extra_state_attributes(self):
+        """Return current matchup information."""
+
+        matchup = self.coordinator.data.get("matchup")
+
+        if matchup is None:
+            return {}
+
+        if matchup.home_team.team_id == self._team_id:
+            my_team = matchup.home_team
+            opponent = matchup.away_team
+            my_score = matchup.home_score
+            opponent_score = matchup.away_score
+        else:
+            my_team = matchup.away_team
+            opponent = matchup.home_team
+            my_score = matchup.away_score
+            opponent_score = matchup.home_score
+
+        return {
+            "team": my_team.team_name,
+            "team_id": my_team.team_id,
+            "score": my_score,
+            "opponent": opponent.team_name,
+            "opponent_team_id": opponent.team_id,
+            "opponent_score": opponent_score,
+            "home_team": matchup.home_team.team_name,
+            "home_score": matchup.home_score,
+            "away_team": matchup.away_team.team_name,
+            "away_score": matchup.away_score,
         }
