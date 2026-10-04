@@ -30,7 +30,7 @@ async def async_setup_entry(
             ESPNFantasyMatchupSensor(
                 coordinator,
                 entry,
-            ),    
+            ),
         ]
     )
 
@@ -86,6 +86,8 @@ class ESPNFantasyTeamSensor(
             "points_for": team.points_for,
             "points_against": team.points_against,
         }
+
+
 class ESPNFantasyMatchupSensor(
     CoordinatorEntity[ESPNFantasyCoordinator],
     SensorEntity,
@@ -113,53 +115,138 @@ class ESPNFantasyMatchupSensor(
             f"{team.team_id}_matchup"
         )
 
-    @property
-    def native_value(self):
-        """Return current matchup score."""
+    def _get_matchup_data(self):
+        """Determine our side of the matchup."""
 
         matchup = self.coordinator.data.get("matchup")
 
         if matchup is None:
-            return "No matchup"
+            return None
 
         if matchup.home_team.team_id == self._team_id:
-            my_score = matchup.home_score
-            opponent_score = matchup.away_score
-        else:
-            my_score = matchup.away_score
-            opponent_score = matchup.home_score
+            return {
+                "team": matchup.home_team,
+                "opponent": matchup.away_team,
+                "score": matchup.home_score,
+                "opponent_score": matchup.away_score,
+                "lineup": matchup.home_lineup,
+                "opponent_lineup": matchup.away_lineup,
+            }
 
-        return f"{my_score:.2f} - {opponent_score:.2f}"
+        return {
+            "team": matchup.away_team,
+            "opponent": matchup.home_team,
+            "score": matchup.away_score,
+            "opponent_score": matchup.home_score,
+            "lineup": matchup.away_lineup,
+            "opponent_lineup": matchup.home_lineup,
+        }
+
+    @staticmethod
+    def _starting_lineup(lineup):
+        """Return starting players, excluding bench and IR."""
+
+        return [
+            player
+            for player in lineup
+            if player.slot_position not in ("BE", "IR")
+        ]
+
+    @staticmethod
+    def _projected_score(lineup):
+        """Calculate projected score for starting lineup."""
+
+        return round(
+            sum(
+                player.projected_points or 0
+                for player in lineup
+                if player.slot_position not in ("BE", "IR")
+            ),
+            2,
+        )
+
+    @staticmethod
+    def _lineup_attributes(lineup):
+        """Convert starting lineup to HA-friendly data."""
+
+        players = []
+
+        for player in lineup:
+            if player.slot_position in ("BE", "IR"):
+                continue
+
+            players.append(
+                {
+                    "name": player.name,
+                    "slot": player.slot_position,
+                    "position": player.position,
+                    "pro_team": player.proTeam,
+                    "points": round(player.points or 0, 2),
+                    "projected_points": round(
+                        player.projected_points or 0,
+                        2,
+                    ),
+                }
+            )
+
+        return players
+
+    @property
+    def native_value(self):
+        """Return current matchup score."""
+
+        data = self._get_matchup_data()
+
+        if data is None:
+            return "No matchup"
+
+        return (
+            f"{data['score']:.2f} - "
+            f"{data['opponent_score']:.2f}"
+        )
 
     @property
     def extra_state_attributes(self):
         """Return current matchup information."""
 
         matchup = self.coordinator.data.get("matchup")
+        league = self.coordinator.data.get("league")
+        data = self._get_matchup_data()
 
-        if matchup is None:
+        if matchup is None or data is None:
             return {}
 
-        if matchup.home_team.team_id == self._team_id:
-            my_team = matchup.home_team
-            opponent = matchup.away_team
-            my_score = matchup.home_score
-            opponent_score = matchup.away_score
-        else:
-            my_team = matchup.away_team
-            opponent = matchup.home_team
-            my_score = matchup.away_score
-            opponent_score = matchup.home_score
+        lineup = self._starting_lineup(data["lineup"])
+        opponent_lineup = self._starting_lineup(
+            data["opponent_lineup"]
+        )
 
         return {
-            "team": my_team.team_name,
-            "team_id": my_team.team_id,
-            "score": my_score,
-            "opponent": opponent.team_name,
-            "opponent_team_id": opponent.team_id,
-            "opponent_score": opponent_score,
+            "week": league.current_week,
+
+            "team": data["team"].team_name,
+            "team_id": data["team"].team_id,
+            "score": round(data["score"], 2),
+            "projected_score": self._projected_score(lineup),
+
+            "opponent": data["opponent"].team_name,
+            "opponent_team_id": data["opponent"].team_id,
+            "opponent_score": round(
+                data["opponent_score"],
+                2,
+            ),
+            "opponent_projected_score": self._projected_score(
+                opponent_lineup
+            ),
+
             "home_team": matchup.home_team.team_name,
-            "home_score": matchup.home_score,
+            "home_score": round(matchup.home_score, 2),
+
             "away_team": matchup.away_team.team_name,
-            "away_score": matchup.away_score,
+            "away_score": round(matchup.away_score, 2),
+
+            "lineup": self._lineup_attributes(lineup),
+            "opponent_lineup": self._lineup_attributes(
+                opponent_lineup
+            ),
         }
